@@ -237,6 +237,8 @@ const TURNOS = {
   C: {label:'C', entrada:'14:00', salida:'22:00'},
 };
 
+const STORAGE_KEY = 'controlJornadas.weeklySchedules';
+
 let weeklySchedules = {}; // { 'YYYY-MM-DD'(lunes): [ {turno:'LIBRE'|'A'|'B'|'C'} x7 Lun..Dom ] }
 let weekOffset = 0;
 let periodOffset = 0;
@@ -259,18 +261,17 @@ function fmtDayShort(d){
 
 async function loadWeeklySchedules(){
   try{
-    if(!window.storage){ storageReady=false; weeklySchedules={}; return; }
-    const res = await window.storage.get('weeklySchedules', false);
-    weeklySchedules = res && res.value ? JSON.parse(res.value) : {};
+    const raw = localStorage.getItem(STORAGE_KEY);
+    weeklySchedules = raw ? JSON.parse(raw) : {};
     storageReady = true;
   }catch(e){
     weeklySchedules = {};
-    storageReady = !!window.storage;
+    storageReady = false;
   }
 }
 async function persist(){
   try{
-    if(window.storage){ await window.storage.set('weeklySchedules', JSON.stringify(weeklySchedules), false); }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(weeklySchedules));
   }catch(e){ console.error('No se pudo guardar', e); }
 }
 
@@ -561,7 +562,7 @@ function renderApp(){
     </div>
     `}
 
-    ${!storageReady ? `<div class="empty-note" style="padding:0 20px 10px; color:var(--text-dim);">Nota: el guardado persistente no está disponible en este entorno; los datos se mantendrán solo mientras esta pestaña esté abierta.</div>` : ''}
+    ${!storageReady ? `<div class="empty-note" style="padding:0 20px 10px; color:var(--text-dim);">Nota: este navegador no permite guardar datos localmente; los datos se mantendrán solo mientras esta pestaña esté abierta.</div>` : ''}
   `;
 
   document.getElementById('root').innerHTML = html;
