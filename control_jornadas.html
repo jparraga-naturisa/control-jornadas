@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Control de Jornadas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#11151c;
+    --panel:#1a212b;
+    --panel-2:#212a36;
+    --border:#2a3441;
+    --text:#eef1f5;
+    --text-dim:#8c96a5;
+    --amber:#f2a93b;
+    --amber-dim:rgba(242,169,59,0.14);
+    --red:#e8604a;
+    --red-dim:rgba(232,96,74,0.16);
+    --green:#57bf8b;
+    --green-dim:rgba(87,191,139,0.14);
+    --blue:#5aa9e6;
+    --blue-dim:rgba(90,169,230,0.14);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+    min-height:100vh;
+  }
+  #root{
+    max-width:460px;
+    margin:0 auto;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    padding-bottom:32px;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  /* Header */
+  .header{
+    padding:22px 20px 18px;
+    border-bottom:1px solid var(--border);
+  }
+  .header-title{font-size:20px; font-weight:700;}
+  .header-sub{font-size:13px; color:var(--text-dim); margin-top:4px;}
+  .view-toggle{display:flex; gap:8px; margin-top:14px;}
+  .view-btn{
+    flex:1;
+    padding:10px;
+    text-align:center;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    font-size:13px;
+    font-weight:600;
+    color:var(--text-dim);
+    cursor:pointer;
+    user-select:none;
+  }
+  .view-btn.active{
+    background:var(--amber-dim);
+    border-color:var(--amber);
+    color:var(--amber);
+  }
+
+  /* Cards */
+  .card{
+    margin:20px;
+    padding:16px 18px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:12px;
+  }
+  .card-title{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.1em;
+    color:var(--text-dim);
+    margin-bottom:12px;
+  }
+  .stat-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    padding:6px 0;
+  }
+  .stat-label{font-size:14px; color:var(--text-dim);}
+  .stat-value{font-size:15px; font-weight:600;}
+  .empty-note{font-size:13px; color:var(--text-dim); padding:6px 0;}
+
+  /* Week nav */
+  .nav-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .nav-btn{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    color:var(--text-dim);
+    width:28px;height:28px;
+    border-radius:6px;
+    font-size:14px;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    user-select:none;
+  }
+  .nav-label{font-size:13px; font-weight:600; letter-spacing:.02em;}
+
+  /* Day cards (weekly schedule input) */
+  .day-card{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px;
+    margin-bottom:8px;
+  }
+  .day-card.disabled{opacity:.55;}
+  .day-card:last-child{margin-bottom:0;}
+  .day-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:10px;
+  }
+  .day-name{font-weight:600; font-size:14px;}
+  .day-date{font-size:11px; color:var(--text-dim); margin-left:6px;}
+  .day-tag{
+    font-size:9px;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    color:var(--red);
+    background:var(--red-dim);
+    border-radius:4px;
+    padding:2px 6px;
+    margin-left:8px;
+  }
+  .turno-row{display:flex; gap:6px; margin-bottom:10px;}
+  .turno-chip{
+    flex:1;
+    padding:8px 4px;
+    text-align:center;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    font-size:12px;
+    color:var(--text-dim);
+    cursor:pointer;
+    user-select:none;
+    transition:all .15s ease;
+  }
+  .turno-chip.selected{
+    background:var(--amber-dim);
+    border-color:var(--amber);
+    color:var(--amber);
+    font-weight:600;
+  }
+  .turno-chip .chip-sub{display:block; font-size:9px; opacity:.85; margin-top:2px;}
+  .day-result{display:flex; gap:12px; flex-wrap:wrap; font-size:12px;}
+  .day-result .ord{color:var(--green);}
+  .day-result .rec25{color:var(--blue);}
+  .day-result .rec100{color:var(--red);}
+
+  /* Totals */
+  .totals-row{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .total-box{
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px;
+    text-align:center;
+  }
+  .total-box .val{font-size:18px; font-weight:700;}
+  .total-box .lbl{font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px;}
+  .total-box.normal .val{color:var(--green);}
+  .total-box.rec25 .val{color:var(--blue);}
+  .total-box.rec100 .val{color:var(--red);}
+
+  .bars{
+    display:flex;
+    align-items:flex-end;
+    gap:6px;
+    height:90px;
+    padding-top:6px;
+    margin-bottom:10px;
+  }
+  .bar-col{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-end;
+    height:100%;
+    gap:4px;
+  }
+  .bar-stack{
+    width:100%;
+    max-width:26px;
+    display:flex;
+    flex-direction:column-reverse;
+    border-radius:3px;
+    overflow:hidden;
+    background:var(--border);
+  }
+  .bar-ord{background:var(--green); width:100%;}
+  .bar-25{background:var(--blue); width:100%;}
+  .bar-100{background:var(--red); width:100%;}
+  .bar-day-label{font-size:10px; color:var(--text-dim);}
+
+  .loading-note{padding:40px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
+</style>
+</head>
+<body>
+<div id="root"><div class="loading-note">Cargando registros…</div></div>
+
+<script>
+const JORNADA_BASE = 8; // horas ordinarias por día antes de recargo
+const NOCHE_INICIO = 19; // 19:00
+const NOCHE_FIN = 6;     // 06:00
+const DIAS_CORTOS = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+const TURNOS = {
+  A: {label:'A', entrada:'22:00', salida:'06:00'},
+  B: {label:'B', entrada:'06:00', salida:'14:00'},
+  C: {label:'C', entrada:'14:00', salida:'22:00'},
+};
+
+let weeklySchedules = {}; // { 'YYYY-MM-DD'(lunes): [ {turno:'LIBRE'|'A'|'B'|'C'} x7 Lun..Dom ] }
+let weekOffset = 0;
+let periodOffset = 0;
+let view = 'semana'; // 'semana' | 'mensual'
+let storageReady = false;
+
+function pad(n){ return n.toString().padStart(2,'0'); }
+function dateKey(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function hoursBetween(a,b){ return (b-a)/3600000; }
+function fmtHoursHM(hDecimal){
+  const h = Math.floor(hDecimal);
+  const m = Math.round((hDecimal-h)*60);
+  if(m===60) return (h+1)+'h 00m';
+  return h+'h '+pad(m)+'m';
+}
+function fmtDayShort(d){
+  const s = new Intl.DateTimeFormat('es-EC',{day:'2-digit',month:'short'}).format(d);
+  return s;
+}
+
+async function loadWeeklySchedules(){
+  try{
+    if(!window.storage){ storageReady=false; weeklySchedules={}; return; }
+    const res = await window.storage.get('weeklySchedules', false);
+    weeklySchedules = res && res.value ? JSON.parse(res.value) : {};
+    storageReady = true;
+  }catch(e){
+    weeklySchedules = {};
+    storageReady = !!window.storage;
+  }
+}
+async function persist(){
+  try{
+    if(window.storage){ await window.storage.set('weeklySchedules', JSON.stringify(weeklySchedules), false); }
+  }catch(e){ console.error('No se pudo guardar', e); }
+}
+
+function mondayOf(d){
+  const x = new Date(d);
+  const day = (x.getDay()+6)%7; // 0=Lun
+  x.setDate(x.getDate()-day);
+  x.setHours(0,0,0,0);
+  return x;
+}
+function weekDays(offset){
+  const base = new Date();
+  base.setHours(0,0,0,0);
+  base.setDate(base.getDate()+offset*7);
+  const start = mondayOf(base);
+  return Array.from({length:7}, (_,i)=>{ const d=new Date(start); d.setDate(start.getDate()+i); return d; });
+}
+
+// Periodo de pago: del 16 del mes anterior al 15 del mes indicado (ej. "Julio" = 16-jun al 15-jul).
+function periodRangeForOffset(offset){
+  const now = new Date();
+  const anchorYear = now.getFullYear();
+  let anchorMonth = (now.getDate() <= 15 ? now.getMonth() : now.getMonth()+1) + offset;
+  const start = new Date(anchorYear, anchorMonth-1, 16);
+  const end = new Date(anchorYear, anchorMonth, 16); // exclusivo
+  const label = new Date(anchorYear, anchorMonth, 1);
+  return {start, end, label};
+}
+
+// Recorre todas las semanas guardadas que se solapan con [start,end) y devuelve el resultado de cada día dentro del rango
+function dayResultsInRange(start, end){
+  const results = [];
+  let cursor = mondayOf(start);
+  while(cursor < end){
+    const weekKey = dateKey(cursor);
+    const rows = getWeekRows(weekKey);
+    const days = Array.from({length:7}, (_,i)=>{ const d=new Date(cursor); d.setDate(cursor.getDate()+i); return d; });
+    const weekResults = computeWeekDayResults(days, rows);
+    days.forEach((d,i)=>{
+      if(d>=start && d<end){ results.push({date:d, turno:rows[i].turno, ...weekResults[i]}); }
+    });
+    cursor.setDate(cursor.getDate()+7);
+  }
+  return results;
+}
+
+function defaultWeekRows(){
+  return Array.from({length:7}, ()=>({turno:'LIBRE'}));
+}
+function getWeekRows(weekKey){
+  return weeklySchedules[weekKey] || defaultWeekRows();
+}
+function ensureWeek(weekKey){
+  if(!weeklySchedules[weekKey]){ weeklySchedules[weekKey] = defaultWeekRows(); }
+  return weeklySchedules[weekKey];
+}
+
+function parseTimeOnDate(dateBase, hhmm){
+  const [h,m] = hhmm.split(':').map(Number);
+  const d = new Date(dateBase);
+  d.setHours(h,m,0,0);
+  return d;
+}
+
+function turnoEntradaSalida(dayDate, turno){
+  const entrada = parseTimeOnDate(dayDate, TURNOS[turno].entrada);
+  let salida = parseTimeOnDate(dayDate, TURNOS[turno].salida);
+  if(salida <= entrada) salida.setDate(salida.getDate()+1); // turno cruza medianoche
+  return {entrada, salida};
+}
+function totalHoursForTurno(dayDate, turno){
+  const {entrada, salida} = turnoEntradaSalida(dayDate, turno);
+  return Math.max(0, hoursBetween(entrada, salida));
+}
+
+// Suma horas de un intervalo [start,end) que caen dentro del rango nocturno (19:00-06:00), sin importar cuántas noches cruce
+function nightOverlapHours(start, end){
+  if(end<=start) return 0;
+  let total = 0;
+  let d = new Date(start); d.setHours(0,0,0,0); d.setDate(d.getDate()-1);
+  const lastDay = new Date(end); lastDay.setHours(0,0,0,0);
+  while(d <= lastDay){
+    const winStart = new Date(d); winStart.setHours(NOCHE_INICIO,0,0,0);
+    const winEnd = new Date(d); winEnd.setDate(winEnd.getDate()+1); winEnd.setHours(NOCHE_FIN,0,0,0);
+    const ovStart = start > winStart ? start : winStart;
+    const ovEnd = end < winEnd ? end : winEnd;
+    if(ovEnd > ovStart) total += hoursBetween(ovStart, ovEnd);
+    d.setDate(d.getDate()+1);
+  }
+  return total;
+}
+
+// Reglas: jornadas normales (que no sean el 6to/7mo día trabajado en la semana) tienen
+// 8 horas normales; las horas nocturnas (19:00-06:00) dentro de esas 8h, y cualquier
+// excedente de las 8h, se pagan al 25%.
+// Día de descanso obligatorio (Art. 50-51): al llegar al 6to día trabajado seguido
+// dentro de la semana (Lun→Dom), sin haber tomado libre, ese día se paga íntegro al 100%.
+function computeDayHours(dayDate, turno){
+  if(!turno || turno==='LIBRE' || !TURNOS[turno]) return {total:0, ord:0, rec25:0, rec100:0};
+  const {entrada, salida} = turnoEntradaSalida(dayDate, turno);
+  const total = Math.max(0, hoursBetween(entrada, salida));
+
+  const ordinaryHours = Math.min(JORNADA_BASE, total);
+  const ordinaryEnd = new Date(entrada.getTime() + ordinaryHours*3600000);
+  const nightInOrdinary = nightOverlapHours(entrada, ordinaryEnd);
+  const ord = ordinaryHours - nightInOrdinary;
+
+  const extraTotal = Math.max(0, total - JORNADA_BASE);
+  const rec25 = nightInOrdinary + extraTotal;
+  return {total, ord, rec25, rec100:0};
+}
+
+function computeWeekDayResults(days, rows){
+  let workedCount = 0;
+  return days.map((d,i)=>{
+    const row = rows[i] || {turno:'LIBRE'};
+    if(row.turno==='LIBRE') return {total:0, ord:0, rec25:0, rec100:0, sextoDia:false};
+    workedCount++;
+    if(workedCount>=6){
+      const total = totalHoursForTurno(d, row.turno);
+      return {total, ord:0, rec25:0, rec100:total, sextoDia:true};
+    }
+    return {...computeDayHours(d, row.turno), sextoDia:false};
+  });
+}
+
+function weekTotals(offset){
+  const days = weekDays(offset);
+  const weekKey = dateKey(days[0]);
+  const rows = getWeekRows(weekKey);
+  const perDay = computeWeekDayResults(days, rows);
+  let ord=0, rec25=0, rec100=0, total=0, worked=0;
+  perDay.forEach(r=>{ ord+=r.ord; rec25+=r.rec25; rec100+=r.rec100; total+=r.total; if(r.total>0) worked++; });
+  return {ord, rec25, rec100, total, worked, perDay};
+}
+
+function renderWeekEditor(offset){
+  const days = weekDays(offset);
+  const weekKey = dateKey(days[0]);
+  const rows = getWeekRows(weekKey);
+  const results = computeWeekDayResults(days, rows);
+  return days.map((d,i)=>{
+    const row = rows[i];
+    const turno = row.turno || 'LIBRE';
+    const r = results[i];
+    const chips = ['LIBRE','A','B','C'].map(t=>{
+      const sel = turno===t;
+      const label = t==='LIBRE' ? 'Libre' : t;
+      const sub = t==='LIBRE' ? '' : `<span class="chip-sub">${TURNOS[t].entrada}–${TURNOS[t].salida}</span>`;
+      return `<div class="turno-chip ${sel?'selected':''}" onclick="selectDayTurno('${weekKey}',${i},'${t}')">${label}${sub}</div>`;
+    }).join('');
+    return `<div class="day-card ${turno==='LIBRE'?'disabled':''}">
+      <div class="day-head">
+        <div><span class="day-name">${DIAS_CORTOS[i]}</span><span class="day-date">${fmtDayShort(d)}</span>${r.sextoDia?'<span class="day-tag">6to día</span>':''}</div>
+      </div>
+      <div class="turno-row">${chips}</div>
+      ${turno!=='LIBRE' ? `
+      <div class="day-result mono">
+        ${r.ord>0?`<span class="ord">${fmtHoursHM(r.ord)} normal</span>`:''}
+        ${r.rec25>0?`<span class="rec25">${fmtHoursHM(r.rec25)} +25%</span>`:''}
+        ${r.rec100>0?`<span class="rec100">${fmtHoursHM(r.rec100)} +100%</span>`:''}
+      </div>` : `<div class="empty-note" style="padding:0;">Día libre</div>`}
+    </div>`;
+  }).join('');
+}
+
+function renderMonthlyReport(offset){
+  const {start, end, label} = periodRangeForOffset(offset);
+  const dayResults = dayResultsInRange(start, end);
+  let ord=0, rec25=0, rec100=0, total=0, worked=0;
+  dayResults.forEach(r=>{ ord+=r.ord; rec25+=r.rec25; rec100+=r.rec100; total+=r.total; if(r.total>0) worked++; });
+  const equivalente = ord + rec25*1.25 + rec100*2;
+  const rangeLabel = `${fmtDayShort(start)} – ${fmtDayShort(new Date(end.getTime()-86400000))}`;
+  const periodLabel = new Intl.DateTimeFormat('es-EC',{month:'long',year:'numeric'}).format(label);
+
+  const workedRows = dayResults.filter(r=>r.total>0).map(r=>{
+    return `<div class="stat-row">
+      <span class="stat-label">${fmtDayShort(r.date)} · Turno ${r.turno}${r.sextoDia?' · 6to día':''}</span>
+      <span class="stat-value">${fmtHoursHM(r.total)}</span>
+    </div>`;
+  }).join('') || `<div class="empty-note">Sin días trabajados en este periodo.</div>`;
+
+  return `
+    <div class="nav-row">
+      <div class="nav-btn" onclick="shiftPeriod(-1)">‹</div>
+      <div class="nav-label">${periodLabel.charAt(0).toUpperCase()+periodLabel.slice(1)} <span style="color:var(--text-dim); font-weight:400;">(${rangeLabel})</span></div>
+      <div class="nav-btn" onclick="shiftPeriod(1)">›</div>
+    </div>
+    <div class="totals-row">
+      <div class="total-box normal"><div class="val mono">${fmtHoursHM(ord)}</div><div class="lbl">Normales</div></div>
+      <div class="total-box rec25"><div class="val mono">${fmtHoursHM(rec25)}</div><div class="lbl">Recargo 25%</div></div>
+      <div class="total-box rec100"><div class="val mono">${fmtHoursHM(rec100)}</div><div class="lbl">6to día 100%</div></div>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Total horas del periodo</span>
+      <span class="stat-value">${fmtHoursHM(total)}</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Días trabajados</span>
+      <span class="stat-value">${worked}</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Equivalente en horas de pago</span>
+      <span class="stat-value">${fmtHoursHM(equivalente)}</span>
+    </div>
+    <div class="card-title" style="margin-top:14px;">Detalle de días trabajados</div>
+    ${workedRows}
+  `;
+}
+
+function renderWeekView(){
+  const days = weekDays(weekOffset);
+  const totals = weekTotals(weekOffset);
+  const rangeLabel = `${fmtDayShort(days[0])} – ${fmtDayShort(days[6])}`;
+  const maxBar = Math.max(1, ...totals.perDay.map(p=>p.total));
+  const equivalente = totals.ord + totals.rec25*1.25 + totals.rec100*2;
+
+  return `
+    <div class="card">
+      <div class="nav-row">
+        <div class="nav-btn" onclick="shiftWeek(-1)">‹</div>
+        <div class="nav-label">${rangeLabel}</div>
+        <div class="nav-btn" onclick="shiftWeek(1)">›</div>
+      </div>
+      ${renderWeekEditor(weekOffset)}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Totales de la semana</div>
+      <div class="totals-row">
+        <div class="total-box normal">
+          <div class="val mono">${fmtHoursHM(totals.ord)}</div>
+          <div class="lbl">Normales</div>
+        </div>
+        <div class="total-box rec25">
+          <div class="val mono">${fmtHoursHM(totals.rec25)}</div>
+          <div class="lbl">Recargo 25%</div>
+        </div>
+        <div class="total-box rec100">
+          <div class="val mono">${fmtHoursHM(totals.rec100)}</div>
+          <div class="lbl">6to día 100%</div>
+        </div>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Total horas trabajadas</span>
+        <span class="stat-value">${fmtHoursHM(totals.total)}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Equivalente en horas de pago</span>
+        <span class="stat-value">${fmtHoursHM(equivalente)}</span>
+      </div>
+      <div class="bars">
+        ${totals.perDay.map((p,i)=>{
+          const t = p.total;
+          const totalPx = Math.round((t/maxBar)*80);
+          const ordPx = t>0 ? Math.round((p.ord/t)*totalPx) : 0;
+          const rec25Px = t>0 ? Math.round((p.rec25/t)*totalPx) : 0;
+          const rec100Px = Math.max(0, totalPx-ordPx-rec25Px);
+          return `<div class="bar-col">
+            <div class="bar-stack" style="height:${Math.max(totalPx,2)}px;">
+              ${rec100Px>0?`<div class="bar-100" style="height:${rec100Px}px;"></div>`:''}
+              ${rec25Px>0?`<div class="bar-25" style="height:${rec25Px}px;"></div>`:''}
+              ${ordPx>0?`<div class="bar-ord" style="height:${ordPx}px;"></div>`:''}
+            </div>
+            <div class="bar-day-label">${DIAS_CORTOS[i]}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderApp(){
+  const html = `
+    <div class="header">
+      <div class="header-title">Control de Jornadas</div>
+      <div class="header-sub">${view==='semana' ? 'Sube tu horario semanal y calcula recargos' : 'Reporte del periodo de pago (16 a 15)'}</div>
+      <div class="view-toggle">
+        <div class="view-btn ${view==='semana'?'active':''}" onclick="setView('semana')">Semana</div>
+        <div class="view-btn ${view==='mensual'?'active':''}" onclick="setView('mensual')">Reporte mensual</div>
+      </div>
+    </div>
+
+    ${view==='semana' ? renderWeekView() : `
+    <div class="card">
+      <div class="card-title">Reporte mensual (16 a 15)</div>
+      ${renderMonthlyReport(periodOffset)}
+    </div>
+    `}
+
+    ${!storageReady ? `<div class="empty-note" style="padding:0 20px 10px; color:var(--text-dim);">Nota: el guardado persistente no está disponible en este entorno; los datos se mantendrán solo mientras esta pestaña esté abierta.</div>` : ''}
+  `;
+
+  document.getElementById('root').innerHTML = html;
+}
+
+// ---- Actions ----
+async function selectDayTurno(weekKey, idx, turno){
+  const rows = ensureWeek(weekKey);
+  rows[idx].turno = turno;
+  await persist();
+  renderApp();
+}
+function shiftWeek(dir){ weekOffset += dir; renderApp(); }
+function shiftPeriod(dir){ periodOffset += dir; renderApp(); }
+function setView(v){ view = v; renderApp(); }
+
+// ---- Init ----
+(async function init(){
+  await loadWeeklySchedules();
+  renderApp();
+})();
+</script>
+</body>
+</html>
