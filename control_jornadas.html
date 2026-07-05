@@ -199,40 +199,8 @@
   }
   .total-box .val{font-size:18px; font-weight:700;}
   .total-box .lbl{font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-top:2px;}
-  .total-box.normal .val{color:var(--green);}
   .total-box.rec25 .val{color:var(--blue);}
   .total-box.rec100 .val{color:var(--red);}
-
-  .bars{
-    display:flex;
-    align-items:flex-end;
-    gap:6px;
-    height:90px;
-    padding-top:6px;
-    margin-bottom:10px;
-  }
-  .bar-col{
-    flex:1;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    justify-content:flex-end;
-    height:100%;
-    gap:4px;
-  }
-  .bar-stack{
-    width:100%;
-    max-width:26px;
-    display:flex;
-    flex-direction:column-reverse;
-    border-radius:3px;
-    overflow:hidden;
-    background:var(--border);
-  }
-  .bar-ord{background:var(--green); width:100%;}
-  .bar-25{background:var(--blue); width:100%;}
-  .bar-100{background:var(--red); width:100%;}
-  .bar-day-label{font-size:10px; color:var(--text-dim);}
 
   .loading-note{padding:40px 20px; text-align:center; color:var(--text-dim); font-size:13px;}
 </style>
@@ -244,6 +212,8 @@
 const JORNADA_BASE = 8; // horas ordinarias por día antes de recargo
 const NOCHE_INICIO = 19; // 19:00
 const NOCHE_FIN = 6;     // 06:00
+const SBU_ECUADOR = 480; // Sueldo Básico Unificado vigente
+const VALOR_HORA = SBU_ECUADOR / 240; // sueldo mensual / 30 días / 8h
 const DIAS_CORTOS = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 const TURNOS = {
   A: {label:'A', entrada:'22:00', salida:'06:00'},
@@ -272,6 +242,7 @@ function fmtDayShort(d){
   const s = new Intl.DateTimeFormat('es-EC',{day:'2-digit',month:'short'}).format(d);
   return s;
 }
+function fmtUSD(n){ return '$'+n.toFixed(2); }
 
 async function loadWeeklySchedules(){
   try{
@@ -472,19 +443,17 @@ function renderWeekEditor(offset){
 function renderMonthlyReport(offset){
   const {start, end, label} = periodRangeForOffset(offset);
   const dayResults = dayResultsInRange(start, end);
-  let ord=0, rec25=0, rec100=0, total=0, worked=0;
-  dayResults.forEach(r=>{ ord+=r.ord; rec25+=r.rec25; rec100+=r.rec100; total+=r.total; if(r.total>0) worked++; });
-  const equivalente = ord + rec25*1.25 + rec100*2;
+  let rec25=0, rec100=0, diasNocturno=0, diasSextoDia=0;
+  dayResults.forEach(r=>{
+    rec25+=r.rec25; rec100+=r.rec100;
+    if(r.rec25>0) diasNocturno++;
+    if(r.sextoDia) diasSextoDia++;
+  });
+  const monto25 = rec25 * VALOR_HORA * 0.25; // solo el recargo (25% del valor hora), no el valor total de la hora
+  const monto100 = rec100 * VALOR_HORA * 2;
+  const totalPagar = monto25 + monto100;
   const rangeLabel = `${fmtDayShort(start)} – ${fmtDayShort(new Date(end.getTime()-86400000))}`;
   const periodLabel = new Intl.DateTimeFormat('es-EC',{month:'long',year:'numeric'}).format(label);
-
-  const workedRows = dayResults.filter(r=>r.total>0).map(r=>{
-    const turnoLabel = r.turno==='OTRO' ? `Otro (${r.entrada}–${r.salida})` : `Turno ${r.turno}`;
-    return `<div class="stat-row">
-      <span class="stat-label">${fmtDayShort(r.date)} · ${turnoLabel}${r.sextoDia?' · 6to día':''}</span>
-      <span class="stat-value">${fmtHoursHM(r.total)}</span>
-    </div>`;
-  }).join('') || `<div class="empty-note">Sin días trabajados en este periodo.</div>`;
 
   return `
     <div class="nav-row">
@@ -492,25 +461,31 @@ function renderMonthlyReport(offset){
       <div class="nav-label">${periodLabel.charAt(0).toUpperCase()+periodLabel.slice(1)} <span style="color:var(--text-dim); font-weight:400;">(${rangeLabel})</span></div>
       <div class="nav-btn" onclick="shiftPeriod(1)">›</div>
     </div>
-    <div class="totals-row">
-      <div class="total-box normal"><div class="val mono">${fmtHoursHM(ord)}</div><div class="lbl">Normales</div></div>
+    <div class="totals-row" style="grid-template-columns:1fr 1fr;">
       <div class="total-box rec25"><div class="val mono">${fmtHoursHM(rec25)}</div><div class="lbl">Recargo 25%</div></div>
       <div class="total-box rec100"><div class="val mono">${fmtHoursHM(rec100)}</div><div class="lbl">6to día 100%</div></div>
     </div>
     <div class="stat-row">
-      <span class="stat-label">Total horas del periodo</span>
-      <span class="stat-value">${fmtHoursHM(total)}</span>
+      <span class="stat-label">Días con horas nocturnas</span>
+      <span class="stat-value">${diasNocturno}</span>
     </div>
     <div class="stat-row">
-      <span class="stat-label">Días trabajados</span>
-      <span class="stat-value">${worked}</span>
+      <span class="stat-label">Días de 6to día</span>
+      <span class="stat-value">${diasSextoDia}</span>
+    </div>
+    <div class="card-title" style="margin-top:14px;">Detalle en dólares</div>
+    <div class="stat-row">
+      <span class="stat-label">Recargo 25%</span>
+      <span class="stat-value">${fmtUSD(monto25)}</span>
     </div>
     <div class="stat-row">
-      <span class="stat-label">Equivalente en horas de pago</span>
-      <span class="stat-value">${fmtHoursHM(equivalente)}</span>
+      <span class="stat-label">6to día 100%</span>
+      <span class="stat-value">${fmtUSD(monto100)}</span>
     </div>
-    <div class="card-title" style="margin-top:14px;">Detalle de días trabajados</div>
-    ${workedRows}
+    <div class="stat-row">
+      <span class="stat-label">Total a pagar</span>
+      <span class="stat-value">${fmtUSD(totalPagar)}</span>
+    </div>
   `;
 }
 
@@ -518,8 +493,8 @@ function renderWeekView(){
   const days = weekDays(weekOffset);
   const totals = weekTotals(weekOffset);
   const rangeLabel = `${fmtDayShort(days[0])} – ${fmtDayShort(days[6])}`;
-  const maxBar = Math.max(1, ...totals.perDay.map(p=>p.total));
-  const equivalente = totals.ord + totals.rec25*1.25 + totals.rec100*2;
+  const diasNocturno = totals.perDay.filter(p=>p.rec25>0).length;
+  const diasSextoDia = totals.perDay.filter(p=>p.sextoDia).length;
 
   return `
     <div class="card">
@@ -533,44 +508,17 @@ function renderWeekView(){
 
     <div class="card">
       <div class="card-title">Totales de la semana</div>
-      <div class="totals-row">
-        <div class="total-box normal">
-          <div class="val mono">${fmtHoursHM(totals.ord)}</div>
-          <div class="lbl">Normales</div>
-        </div>
-        <div class="total-box rec25">
-          <div class="val mono">${fmtHoursHM(totals.rec25)}</div>
-          <div class="lbl">Recargo 25%</div>
-        </div>
-        <div class="total-box rec100">
-          <div class="val mono">${fmtHoursHM(totals.rec100)}</div>
-          <div class="lbl">6to día 100%</div>
-        </div>
+      <div class="totals-row" style="grid-template-columns:1fr 1fr;">
+        <div class="total-box rec25"><div class="val mono">${fmtHoursHM(totals.rec25)}</div><div class="lbl">Recargo 25%</div></div>
+        <div class="total-box rec100"><div class="val mono">${fmtHoursHM(totals.rec100)}</div><div class="lbl">6to día 100%</div></div>
       </div>
       <div class="stat-row">
-        <span class="stat-label">Total horas trabajadas</span>
-        <span class="stat-value">${fmtHoursHM(totals.total)}</span>
+        <span class="stat-label">Días con horas nocturnas</span>
+        <span class="stat-value">${diasNocturno}</span>
       </div>
       <div class="stat-row">
-        <span class="stat-label">Equivalente en horas de pago</span>
-        <span class="stat-value">${fmtHoursHM(equivalente)}</span>
-      </div>
-      <div class="bars">
-        ${totals.perDay.map((p,i)=>{
-          const t = p.total;
-          const totalPx = Math.round((t/maxBar)*80);
-          const ordPx = t>0 ? Math.round((p.ord/t)*totalPx) : 0;
-          const rec25Px = t>0 ? Math.round((p.rec25/t)*totalPx) : 0;
-          const rec100Px = Math.max(0, totalPx-ordPx-rec25Px);
-          return `<div class="bar-col">
-            <div class="bar-stack" style="height:${Math.max(totalPx,2)}px;">
-              ${rec100Px>0?`<div class="bar-100" style="height:${rec100Px}px;"></div>`:''}
-              ${rec25Px>0?`<div class="bar-25" style="height:${rec25Px}px;"></div>`:''}
-              ${ordPx>0?`<div class="bar-ord" style="height:${ordPx}px;"></div>`:''}
-            </div>
-            <div class="bar-day-label">${DIAS_CORTOS[i]}</div>
-          </div>`;
-        }).join('')}
+        <span class="stat-label">Días de 6to día</span>
+        <span class="stat-value">${diasSextoDia}</span>
       </div>
     </div>
   `;
