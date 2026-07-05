@@ -143,9 +143,10 @@
     padding:2px 6px;
     margin-left:8px;
   }
-  .turno-row{display:flex; gap:6px; margin-bottom:10px;}
+  .turno-row{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;}
   .turno-chip{
-    flex:1;
+    flex:1 1 30%;
+    min-width:56px;
     padding:8px 4px;
     text-align:center;
     background:var(--panel);
@@ -164,6 +165,19 @@
     font-weight:600;
   }
   .turno-chip .chip-sub{display:block; font-size:9px; opacity:.85; margin-top:2px;}
+  .day-times{display:flex; gap:8px; margin-bottom:10px;}
+  .field-inline{flex:1;}
+  .field-inline label{display:block; font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;}
+  .field-inline input[type=time]{
+    width:100%;
+    background:var(--panel);
+    border:1px solid var(--border);
+    color:var(--text);
+    padding:8px;
+    border-radius:6px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:14px;
+  }
   .day-result{display:flex; gap:12px; flex-wrap:wrap; font-size:12px;}
   .day-result .ord{color:var(--green);}
   .day-result .rec25{color:var(--blue);}
@@ -311,7 +325,7 @@ function dayResultsInRange(start, end){
     const days = Array.from({length:7}, (_,i)=>{ const d=new Date(cursor); d.setDate(cursor.getDate()+i); return d; });
     const weekResults = computeWeekDayResults(days, rows);
     days.forEach((d,i)=>{
-      if(d>=start && d<end){ results.push({date:d, turno:rows[i].turno, ...weekResults[i]}); }
+      if(d>=start && d<end){ results.push({date:d, turno:rows[i].turno, entrada:rows[i].entrada, salida:rows[i].salida, ...weekResults[i]}); }
     });
     cursor.setDate(cursor.getDate()+7);
   }
@@ -336,14 +350,19 @@ function parseTimeOnDate(dateBase, hhmm){
   return d;
 }
 
-function turnoEntradaSalida(dayDate, turno){
-  const entrada = parseTimeOnDate(dayDate, TURNOS[turno].entrada);
-  let salida = parseTimeOnDate(dayDate, TURNOS[turno].salida);
+function entradaSalidaStrings(row){
+  if(row.turno==='OTRO') return {entrada: row.entrada || '08:00', salida: row.salida || '17:00'};
+  return TURNOS[row.turno] || null;
+}
+function turnoEntradaSalida(dayDate, row){
+  const t = entradaSalidaStrings(row);
+  const entrada = parseTimeOnDate(dayDate, t.entrada);
+  let salida = parseTimeOnDate(dayDate, t.salida);
   if(salida <= entrada) salida.setDate(salida.getDate()+1); // turno cruza medianoche
   return {entrada, salida};
 }
-function totalHoursForTurno(dayDate, turno){
-  const {entrada, salida} = turnoEntradaSalida(dayDate, turno);
+function totalHoursForTurno(dayDate, row){
+  const {entrada, salida} = turnoEntradaSalida(dayDate, row);
   return Math.max(0, hoursBetween(entrada, salida));
 }
 
@@ -369,9 +388,9 @@ function nightOverlapHours(start, end){
 // excedente de las 8h, se pagan al 25%.
 // Día de descanso obligatorio (Art. 50-51): al llegar al 6to día trabajado seguido
 // dentro de la semana (Lun→Dom), sin haber tomado libre, ese día se paga íntegro al 100%.
-function computeDayHours(dayDate, turno){
-  if(!turno || turno==='LIBRE' || !TURNOS[turno]) return {total:0, ord:0, rec25:0, rec100:0};
-  const {entrada, salida} = turnoEntradaSalida(dayDate, turno);
+function computeDayHours(dayDate, row){
+  if(!row || row.turno==='LIBRE' || !entradaSalidaStrings(row)) return {total:0, ord:0, rec25:0, rec100:0};
+  const {entrada, salida} = turnoEntradaSalida(dayDate, row);
   const total = Math.max(0, hoursBetween(entrada, salida));
 
   const ordinaryHours = Math.min(JORNADA_BASE, total);
@@ -391,10 +410,10 @@ function computeWeekDayResults(days, rows){
     if(row.turno==='LIBRE') return {total:0, ord:0, rec25:0, rec100:0, sextoDia:false};
     workedCount++;
     if(workedCount>=6){
-      const total = totalHoursForTurno(d, row.turno);
+      const total = totalHoursForTurno(d, row);
       return {total, ord:0, rec25:0, rec100:total, sextoDia:true};
     }
-    return {...computeDayHours(d, row.turno), sextoDia:false};
+    return {...computeDayHours(d, row), sextoDia:false};
   });
 }
 
@@ -417,17 +436,29 @@ function renderWeekEditor(offset){
     const row = rows[i];
     const turno = row.turno || 'LIBRE';
     const r = results[i];
-    const chips = ['LIBRE','A','B','C'].map(t=>{
+    const chips = ['LIBRE','A','B','C','OTRO'].map(t=>{
       const sel = turno===t;
-      const label = t==='LIBRE' ? 'Libre' : t;
-      const sub = t==='LIBRE' ? '' : `<span class="chip-sub">${TURNOS[t].entrada}–${TURNOS[t].salida}</span>`;
+      const label = t==='LIBRE' ? 'Libre' : (t==='OTRO' ? 'Otro' : t);
+      const sub = t==='LIBRE' ? '' : (t==='OTRO' ? `<span class="chip-sub">Elige horas</span>` : `<span class="chip-sub">${TURNOS[t].entrada}–${TURNOS[t].salida}</span>`);
       return `<div class="turno-chip ${sel?'selected':''}" onclick="selectDayTurno('${weekKey}',${i},'${t}')">${label}${sub}</div>`;
     }).join('');
+    const customTimes = turno==='OTRO' ? `
+      <div class="day-times">
+        <div class="field-inline">
+          <label>Entrada</label>
+          <input type="time" value="${row.entrada||'08:00'}" onchange="updateCustomTime('${weekKey}',${i},'entrada',this.value)">
+        </div>
+        <div class="field-inline">
+          <label>Salida</label>
+          <input type="time" value="${row.salida||'17:00'}" onchange="updateCustomTime('${weekKey}',${i},'salida',this.value)">
+        </div>
+      </div>` : '';
     return `<div class="day-card ${turno==='LIBRE'?'disabled':''}">
       <div class="day-head">
         <div><span class="day-name">${DIAS_CORTOS[i]}</span><span class="day-date">${fmtDayShort(d)}</span>${r.sextoDia?'<span class="day-tag">6to día</span>':''}</div>
       </div>
       <div class="turno-row">${chips}</div>
+      ${customTimes}
       ${turno!=='LIBRE' ? `
       <div class="day-result mono">
         ${r.ord>0?`<span class="ord">${fmtHoursHM(r.ord)} normal</span>`:''}
@@ -448,8 +479,9 @@ function renderMonthlyReport(offset){
   const periodLabel = new Intl.DateTimeFormat('es-EC',{month:'long',year:'numeric'}).format(label);
 
   const workedRows = dayResults.filter(r=>r.total>0).map(r=>{
+    const turnoLabel = r.turno==='OTRO' ? `Otro (${r.entrada}–${r.salida})` : `Turno ${r.turno}`;
     return `<div class="stat-row">
-      <span class="stat-label">${fmtDayShort(r.date)} · Turno ${r.turno}${r.sextoDia?' · 6to día':''}</span>
+      <span class="stat-label">${fmtDayShort(r.date)} · ${turnoLabel}${r.sextoDia?' · 6to día':''}</span>
       <span class="stat-value">${fmtHoursHM(r.total)}</span>
     </div>`;
   }).join('') || `<div class="empty-note">Sin días trabajados en este periodo.</div>`;
@@ -572,6 +604,16 @@ function renderApp(){
 async function selectDayTurno(weekKey, idx, turno){
   const rows = ensureWeek(weekKey);
   rows[idx].turno = turno;
+  if(turno==='OTRO'){
+    if(!rows[idx].entrada) rows[idx].entrada = '08:00';
+    if(!rows[idx].salida) rows[idx].salida = '17:00';
+  }
+  await persist();
+  renderApp();
+}
+async function updateCustomTime(weekKey, idx, field, value){
+  const rows = ensureWeek(weekKey);
+  rows[idx][field] = value;
   await persist();
   renderApp();
 }
